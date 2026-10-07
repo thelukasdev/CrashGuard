@@ -4,9 +4,14 @@ watchdog:
   enabled: true
   timeout-seconds: 30
   check-seconds: 2
+  # Allow world/region startup before treating a missing first tick as a freeze.
+  startup-grace-seconds: 60
   # report | shutdown. shutdown requests the platform's regular stop only once.
   # A frozen server may never complete a regular stop; use an external supervisor.
   action: report
+  folia:
+    # Monitors regions with tracked players, not every loaded/empty region.
+    player-regions: true
 reports:
   enabled: true
   capture-severe-exceptions: true
@@ -75,6 +80,7 @@ messages:
   startup-failed: 'CrashGuard konnte nicht starten: {error}'
   manual-report: 'Manuelle Diagnose angefordert.'
   freeze-detected: 'Heartbeat seit {seconds} Sekunden ausgeblieben.'
+  region-freeze-detected: 'Folia-Spieler-Heartbeat ausgeblieben ({count} Beobachtungen).'
   freeze-recovered: 'Heartbeat läuft wieder.'
   unexpected-exit: 'Der vorherige Prozess hat keinen regulären Shutdown vermerkt. Ursache unbekannt.'
   command-usage: '/crashguard [status|report]'

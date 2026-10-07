@@ -29,6 +29,7 @@ public final class Settings {
         validate(values, defaults, "");
         range("watchdog.timeout-seconds", 5, 3600);
         range("watchdog.check-seconds", 1, 60);
+        range("watchdog.startup-grace-seconds", 0, 3600);
         range("recovery.window-seconds", 1, 120);
         range("recovery.max-sessions", 1, 100000);
         range("reports.max-files", 1, 10000);

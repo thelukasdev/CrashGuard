@@ -29,6 +29,11 @@ public final class CrashGuard implements AutoCloseable {
     private final AtomicLong lastException = new AtomicLong();
     private volatile String evidence = "";
     private final Deque<String> history = new ArrayDeque<>();
+    private final HeartbeatSources sources = new HeartbeatSources();
+    private volatile long startedAt;
+    public void beatSource(String source) { sources.beat(source); }
+    public void watchSource(String source) { sources.watch(source); }
+    public void forgetHeartbeat(String source) { sources.remove(source); }
     public CrashGuard(Path folder, Platform platform) throws IOException {
         this.folder = folder; this.platform = platform; config = new Settings(folder);
         if (!Set.of("report", "shutdown").contains(config.string("watchdog.action"))) throw new IOException("Invalid watchdog.action");
@@ -37,6 +42,7 @@ public final class CrashGuard implements AutoCloseable {
         monitor = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "CrashGuard-Watchdog"); t.setDaemon(true); return t; });
     }
     public void start() throws IOException {
+        startedAt = System.nanoTime();
         Path marker = folder.resolve("running.marker");
         boolean previous = Files.exists(marker);
         if (previous) {
@@ -99,18 +105,23 @@ public final class CrashGuard implements AutoCloseable {
     }
     private void checkSafely() {
         try {
-            if (!config.bool("watchdog.enabled")) return;
+            if (closed || !config.bool("watchdog.enabled")) return;
+            if (System.nanoTime() - startedAt < TimeUnit.SECONDS.toNanos(config.integer("watchdog.startup-grace-seconds"))) return;
             ThreadMXBean mx = ManagementFactory.getThreadMXBean();
             long[] ids = mx.isSynchronizerUsageSupported() ? mx.findDeadlockedThreads() : mx.findMonitorDeadlockedThreads();
             if (ids != null && !deadlocked) { deadlocked = true; report("JVM deadlock detected: " + Arrays.toString(ids)); }
             else if (ids == null) deadlocked = false;
             long seconds = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - heartbeat.get());
-            if (seconds >= config.integer("watchdog.timeout-seconds") && !stalled) {
+            Map<String, HeartbeatSources.Beat> regions = sources.stalled(TimeUnit.SECONDS.toNanos(config.integer("watchdog.timeout-seconds")));
+            boolean frozen = seconds >= config.integer("watchdog.timeout-seconds") || !regions.isEmpty();
+            if (frozen && !stalled) {
                 stalled = true; state = "stalled";
-                String reason = config.message("freeze-detected", Map.of("seconds", Long.toString(seconds)));
+                String reason = seconds >= config.integer("watchdog.timeout-seconds")
+                    ? config.message("freeze-detected", Map.of("seconds", Long.toString(seconds)))
+                    : config.message("region-freeze-detected", Map.of("sources", regions.keySet().toString(), "count", Integer.toString(regions.size())));
                 platform.log(reason); report(reason);
                 if (config.string("watchdog.action").equals("shutdown")) platform.requestShutdown();
-            } else if (seconds < config.integer("watchdog.timeout-seconds") && stalled) {
+            } else if (!frozen && stalled) {
                 stalled = false; state = "healthy"; platform.log(config.message("freeze-recovered", Map.of()));
             }
         } catch (RuntimeException e) { platform.log(config.message("report-failed", Map.of("error", e.toString()))); }
@@ -130,12 +141,14 @@ public final class CrashGuard implements AutoCloseable {
             long[] deadlocks;
             try { deadlocks = mx.findDeadlockedThreads(); } catch (UnsupportedOperationException e) { deadlocks = mx.findMonitorDeadlockedThreads(); }
             body.append("\n\nDeadlocked thread IDs: ").append(Arrays.toString(deadlocks));
+            Map<String, HeartbeatSources.Beat> regions = sources.stalled(TimeUnit.SECONDS.toNanos(config.integer("watchdog.timeout-seconds")));
+            body.append("\nStalled region observations: ").append(regions);
             body.append("\n\n## Threads – ").append(config.string("messages.suspect-label")).append('\n');
             for (ThreadInfo thread : mx.dumpAllThreads(false, false)) {
                 body.append('\n').append(thread.getThreadName()).append(" [").append(thread.getThreadId()).append("] ").append(thread.getThreadState()).append('\n');
                 for (StackTraceElement frame : thread.getStackTrace()) {
                     body.append("  at ").append(frame).append('\n');
-                    if (thread.getThreadId() == heartbeatThread) relevantStack.append("at ").append(frame).append('\n');
+                    if (thread.getThreadId() == heartbeatThread || regions.values().stream().anyMatch(beat -> beat.threadId() == thread.getThreadId())) relevantStack.append("at ").append(frame).append('\n');
                 }
             }
             String hints = CrashEvidence.summarize(relevantStack.toString(), platform.pluginPackages());
