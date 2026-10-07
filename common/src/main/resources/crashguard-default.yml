@@ -1,0 +1,81 @@
+# Copy is created independently in each platform's plugin directory.
+# Changes take effect after restarting the plugin/server.
+watchdog:
+  enabled: true
+  timeout-seconds: 30
+  check-seconds: 2
+  # report | shutdown. shutdown requests the platform's regular stop only once.
+  # A frozen server may never complete a regular stop; use an external supervisor.
+  action: report
+reports:
+  enabled: true
+  capture-severe-exceptions: true
+  # Expected transport resets/timeouts/closed sockets are not server crashes.
+  ignore-expected-connection-errors: true
+  exception-cooldown-seconds: 30
+  # Relative to the server working directory; Paper's standard crash reports.
+  import-crash-reports: true
+  crash-report-directory: crash-reports
+  journal:
+    enabled: true
+    interval-seconds: 5
+    history-snapshots: 15
+  max-files: 20
+  max-context: 120
+  title: 'CrashGuard – Diagnosebericht'
+  discord:
+    enabled: false
+    webhook-url: ''
+    username: CrashGuard
+    # Thread stacks and player UUIDs may be sensitive; opt in explicitly.
+    include-context: false
+recovery:
+  enabled: true
+  window-seconds: 15
+  max-sessions: 2000
+  # Paper: normal logouts are excluded. Optional heuristic for ambiguous disconnects.
+  recover-ambiguous-disconnects: false
+  # Do not overwrite spawn/login teleports or a changed login position.
+  respect-other-plugins: true
+  # Optional informational trace explaining each Paper recovery decision.
+  log-decisions: false
+  latency:
+    enabled: true
+    consecutive-samples: 3
+    high-ping-ms: 600
+    rise-ms: 300
+    baseline-multiplier: 3
+  # Snapshots remain in memory and expire; no restore after a process crash.
+  # Paper restores location and velocity only. Vanilla persists inventory/health.
+  restore-location: true
+  restore-velocity: false
+  protection-seconds: 3
+  protect-after-reconnect: true
+  # Combat plugins should call RecoveryPolicy or disable recovery entirely.
+  exclude-dead: true
+  exclude-creative: false
+  notify-player: true
+isolation:
+  enabled: false
+  # Explicit UUIDs only; no automatic deletion or attribution from stack traces.
+  entity-uuids: []
+  # Only non-player entities can be frozen. Existing entries apply on chunk load.
+  freeze-ai: true
+  freeze-gravity: true
+messages:
+  startup: 'CrashGuard wurde gestartet ({platform}).'
+  shutdown: 'CrashGuard wurde beendet.'
+  recovered: 'Deine letzte Position wurde nach dem Verbindungsabbruch wiederhergestellt.'
+  recovery-decision: 'Recovery {player}: reason={reason}, ping={ping}ms, unstable={unstable}, buffered={buffered}'
+  proxy-recovered: 'Du wirst wieder mit deinem letzten Server verbunden.'
+  no-permission: 'Dafür hast du keine Berechtigung.'
+  status: 'CrashGuard: {platform}, gepufferte Sessions: {sessions}, Diagnose: {state}'
+  report-created: 'Diagnose gespeichert: {path}'
+  report-failed: 'Diagnose konnte nicht gespeichert werden: {error}'
+  startup-failed: 'CrashGuard konnte nicht starten: {error}'
+  manual-report: 'Manuelle Diagnose angefordert.'
+  freeze-detected: 'Heartbeat seit {seconds} Sekunden ausgeblieben.'
+  freeze-recovered: 'Heartbeat läuft wieder.'
+  unexpected-exit: 'Der vorherige Prozess hat keinen regulären Shutdown vermerkt. Ursache unbekannt.'
+  command-usage: '/crashguard [status|report]'
+  suspect-label: 'Stacktrace-Hinweis; keine bestätigte Ursache'

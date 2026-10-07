@@ -1,0 +1,14 @@
+name: CrashGuard
+version: 1.0.0
+main: de.crashguard.paper.PaperGuard
+api-version: '1.21'
+description: Watchdog diagnostics and bounded reconnect recovery
+author: CrashGuard
+commands:
+  crashguard:
+    description: CrashGuard diagnostics
+permissions:
+  crashguard.admin:
+    default: op
+  crashguard.recovery:
+    default: true

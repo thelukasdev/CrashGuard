@@ -1,0 +1,4 @@
+name: CrashGuard
+version: 1.0.0
+main: de.crashguard.bungee.BungeeGuard
+author: CrashGuard
